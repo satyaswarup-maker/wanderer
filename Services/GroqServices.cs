@@ -49,7 +49,7 @@ Rules:
                     new { role = "user", content = prompt }
                 },
                 max_tokens = 1500,
-                temperature = 0.8,
+                temperature = 1.0,
             };
 
             var json = JsonSerializer.Serialize(requestBody);
