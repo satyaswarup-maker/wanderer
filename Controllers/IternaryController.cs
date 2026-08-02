@@ -35,44 +35,35 @@ namespace wanderer_api.Controllers
             var result = new ItineraryResponse();
             var lines = rawText.Split('\n').Select(l => l.Trim()).Where(l => l.Length > 0);
 
+            var stops = new List<ItineraryStop>();
             ItineraryStop? currentStop = null;
             int stopIndex = 1;
 
             foreach (var line in lines)
             {
-                // Extract overview
                 if (line.StartsWith("Overview:", StringComparison.OrdinalIgnoreCase))
                 {
                     result.Overview = line.Replace("Overview:", "").Trim();
                     continue;
                 }
 
-                // Match numbered stop
                 var stopMatch = Regex.Match(line, @"^\d+\.\s+\*{0,2}([^*\(]+)\*{0,2}\s*[\(\-]?\s*([\d:apmAPM\s\-–]+)?");
                 if (stopMatch.Success)
                 {
                     if (currentStop != null)
-                        result.Stops.Add(currentStop);
-
-                    var placeName = stopMatch.Groups[1].Value.Trim();
-                    var time = stopMatch.Groups[2].Value.Trim();
-
-                    var (lat, lng) = await _geocodingService.GeocodeAsync(placeName, city);
+                        stops.Add(currentStop);
 
                     currentStop = new ItineraryStop
                     {
                         Index = stopIndex++,
-                        Name = placeName,
-                        Time = time,
-                        Lat = lat,
-                        Lng = lng
+                        Name = stopMatch.Groups[1].Value.Trim(),
+                        Time = stopMatch.Groups[2].Value.Trim(),
                     };
                     continue;
                 }
 
                 if (currentStop != null)
                 {
-                    // Handle all tip variations
                     if (line.StartsWith("Tip:", StringComparison.OrdinalIgnoreCase) ||
                         line.StartsWith("Local Tip:", StringComparison.OrdinalIgnoreCase) ||
                         line.StartsWith("Insider Tip:", StringComparison.OrdinalIgnoreCase) ||
@@ -82,35 +73,35 @@ namespace wanderer_api.Controllers
                             @"^(insider tip:|pro tip:|local tip:|tip:)",
                             "", RegexOptions.IgnoreCase).Trim();
                     }
-                    // Handle inline tip inside description
                     else if (line.Contains("Tip:", StringComparison.OrdinalIgnoreCase))
                     {
                         var tipIndex = line.IndexOf("Tip:", StringComparison.OrdinalIgnoreCase);
                         currentStop.Tip = line.Substring(tipIndex + 4).Trim();
-
                         var descPart = line.Substring(0, tipIndex).Trim();
                         if (!string.IsNullOrEmpty(descPart))
-                        {
                             currentStop.Desc = string.IsNullOrEmpty(currentStop.Desc)
                                 ? descPart.Replace("**", "")
                                 : currentStop.Desc + " " + descPart.Replace("**", "");
-                        }
                     }
-                    // Regular description line
                     else if (string.IsNullOrEmpty(currentStop.Desc))
-                    {
                         currentStop.Desc = line.Replace("**", "");
-                    }
                     else
-                    {
                         currentStop.Desc += " " + line.Replace("**", "");
-                    }
                 }
             }
 
             if (currentStop != null)
-                result.Stops.Add(currentStop);
+                stops.Add(currentStop);
 
+            // Geocode ALL stops in parallel — much faster!
+            await Task.WhenAll(stops.Select(async stop =>
+            {
+                var (lat, lng) = await _geocodingService.GeocodeAsync(stop.Name, city);
+                stop.Lat = lat;
+                stop.Lng = lng;
+            }));
+
+            result.Stops = stops;
             return result;
         }
     }

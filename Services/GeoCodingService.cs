@@ -103,8 +103,6 @@ namespace wanderer_api.Services
                 // countrycodes=in restricts results to India only
                 var url = $"https://nominatim.openstreetmap.org/search?q={encoded}&format=jsonv2&limit=1&countrycodes=in";
 
-                // Nominatim rate limit — 1 request per second
-                await Task.Delay(1000);
 
                 var response = await _httpClient.GetAsync(url);
                 if (!response.IsSuccessStatusCode) return (0, 0);
