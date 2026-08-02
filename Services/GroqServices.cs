@@ -22,21 +22,24 @@ Create a detailed travel itinerary for someone visiting {city}.
 Vibe: {vibe}
 Duration: {duration}
 
-Format your response EXACTLY like this:
+Format your response EXACTLY like this — do not deviate:
 Overview: [2-3 sentence city intro]
 
-Then list stops numbered like:
-1. **Place Name** (Time e.g. 9:00 AM - 10:30 AM)
+1. **Place Name** (Time e.g. 9:00 AM - 10:30 AM) [LAT:12.9716,LNG:77.5946]
 Description of the place, 2-3 sentences.
 Tip: One practical local tip.
 
-2. **Next Place** (Time)
-...
+2. **Next Place** (Time) [LAT:12.9611,LNG:77.6387]
+Description.
+Tip: tip here.
 
-Include {(duration.Contains("Half") ? "4-5" : duration.Contains("2 Days") ? "8-10" : "6-8")} stops.
-Use real well-known place names specific to {city}.
-Keep 70% iconic must-visit places and 30% hidden gems.
-Vary the selection slightly each time.";
+Rules:
+- Include {(duration.Contains("Half") ? "4-5" : duration.Contains("2 Days") ? "8-10" : "6-8")} stops.
+- Use real well-known place names specific to {city}.
+- ALWAYS include accurate [LAT:xx.xxxx,LNG:xx.xxxx] coordinates for every stop.
+- Coordinates must be the actual location of that specific place in {city}, India.
+- Keep 70% iconic places and 30% hidden gems.
+- Vary the selection slightly each time.";
 
             var requestBody = new
             {

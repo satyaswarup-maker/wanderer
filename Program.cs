@@ -7,7 +7,8 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 builder.Services.AddHttpClient<GroqService>();
-builder.Services.AddHttpClient<GeocodingService>();
+
+// GeocodingService removed — no longer needed!
 
 builder.Services.AddCors(options =>
 {
@@ -28,9 +29,7 @@ var app = builder.Build();
 app.UseSwagger();
 app.UseSwaggerUI();
 
-// CORS must come BEFORE everything else
 app.UseCors("WandererPolicy");
-
 app.UseHttpsRedirection();
 app.UseAuthorization();
 app.MapControllers();

@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using System.Globalization;
 using System.Text.RegularExpressions;
 using wanderer_api.Models;
 using wanderer_api.Services;
@@ -10,12 +11,10 @@ namespace wanderer_api.Controllers
     public class ItineraryController : ControllerBase
     {
         private readonly GroqService _groqService;
-        private readonly GeocodingService _geocodingService;
 
-        public ItineraryController(GroqService groqService, GeocodingService geocodingService)
+        public ItineraryController(GroqService groqService)
         {
             _groqService = groqService;
-            _geocodingService = geocodingService;
         }
 
         [HttpPost]
@@ -25,45 +24,64 @@ namespace wanderer_api.Controllers
             var rawText = await _groqService.GenerateItineraryAsync(
                 request.City, request.Vibe, request.Duration);
 
-            var response = await ParseAndGeocodeAsync(rawText, request.City);
+            var response = ParseItinerary(rawText, request.City);
 
             return Ok(response);
         }
 
-        private async Task<ItineraryResponse> ParseAndGeocodeAsync(string rawText, string city)
+        private ItineraryResponse ParseItinerary(string rawText, string city)
         {
             var result = new ItineraryResponse();
             var lines = rawText.Split('\n').Select(l => l.Trim()).Where(l => l.Length > 0);
 
-            var stops = new List<ItineraryStop>();
             ItineraryStop? currentStop = null;
             int stopIndex = 1;
 
             foreach (var line in lines)
             {
+                // Extract overview
                 if (line.StartsWith("Overview:", StringComparison.OrdinalIgnoreCase))
                 {
                     result.Overview = line.Replace("Overview:", "").Trim();
                     continue;
                 }
 
-                var stopMatch = Regex.Match(line, @"^\d+\.\s+\*{0,2}([^*\(]+)\*{0,2}\s*[\(\-]?\s*([\d:apmAPM\s\-–]+)?");
+                // Match numbered stop with coordinates
+                // Format: 1. **Place Name** (Time) [LAT:12.9716,LNG:77.5946]
+                var stopMatch = Regex.Match(line,
+                    @"^\d+\.\s+\*{0,2}([^*\(\[]+)\*{0,2}\s*(?:\(([^)]+)\))?\s*(?:\[LAT:([-\d.]+),LNG:([-\d.]+)\])?");
+
                 if (stopMatch.Success)
                 {
                     if (currentStop != null)
-                        stops.Add(currentStop);
+                        result.Stops.Add(currentStop);
+
+                    var placeName = stopMatch.Groups[1].Value.Trim();
+                    var time = stopMatch.Groups[2].Value.Trim();
+
+                    double lat = 0, lng = 0;
+                    if (stopMatch.Groups[3].Success && stopMatch.Groups[4].Success)
+                    {
+                        double.TryParse(stopMatch.Groups[3].Value,
+                            NumberStyles.Float, CultureInfo.InvariantCulture, out lat);
+                        double.TryParse(stopMatch.Groups[4].Value,
+                            NumberStyles.Float, CultureInfo.InvariantCulture, out lng);
+                    }
 
                     currentStop = new ItineraryStop
                     {
                         Index = stopIndex++,
-                        Name = stopMatch.Groups[1].Value.Trim(),
-                        Time = stopMatch.Groups[2].Value.Trim(),
+                        Name = placeName,
+                        Time = time,
+                        Lat = lat,
+                        Lng = lng
                     };
                     continue;
                 }
 
                 if (currentStop != null)
                 {
+                    // Handle tip variations
                     if (line.StartsWith("Tip:", StringComparison.OrdinalIgnoreCase) ||
                         line.StartsWith("Local Tip:", StringComparison.OrdinalIgnoreCase) ||
                         line.StartsWith("Insider Tip:", StringComparison.OrdinalIgnoreCase) ||
@@ -91,17 +109,8 @@ namespace wanderer_api.Controllers
             }
 
             if (currentStop != null)
-                stops.Add(currentStop);
+                result.Stops.Add(currentStop);
 
-            // Geocode ALL stops in parallel — much faster!
-            await Task.WhenAll(stops.Select(async stop =>
-            {
-                var (lat, lng) = await _geocodingService.GeocodeAsync(stop.Name, city);
-                stop.Lat = lat;
-                stop.Lng = lng;
-            }));
-
-            result.Stops = stops;
             return result;
         }
     }
