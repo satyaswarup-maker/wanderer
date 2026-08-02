@@ -16,7 +16,7 @@ builder.Services.AddCors(options =>
         policy.WithOrigins(
                 "http://localhost:5173",
                 "http://localhost:5174",
-                "https://wanderer-web-omega.vercel.app" // Replace later with your actual Vercel URL
+                "https://wanderer-web-omega.vercel.app"
             )
             .AllowAnyHeader()
             .AllowAnyMethod();
@@ -25,16 +25,13 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-// Enable Swagger in ALL environments
 app.UseSwagger();
 app.UseSwaggerUI();
 
-app.UseHttpsRedirection();
-
+// CORS must come BEFORE everything else
 app.UseCors("WandererPolicy");
 
+app.UseHttpsRedirection();
 app.UseAuthorization();
-
 app.MapControllers();
-
 app.Run();
