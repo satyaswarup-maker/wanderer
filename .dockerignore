@@ -1,0 +1,15 @@
+bin/
+obj/
+.vs/
+.git/
+*.user
+*.suo
+*.log
+*.md
+**/bin/
+**/obj/
+node_modules/
+venv/
+*.db
+.env
+docker-compose*.yml
